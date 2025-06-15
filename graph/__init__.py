@@ -1,6 +1,5 @@
-# SpotGraphLib/__init__.py
 
-from .utils.graph_base import GraphBase
-from .utils import graph_nav_util
+from .graph_recorder import GraphRecorder
+from .graph_navigator import GraphNavigator
 
-__all__ = ["GraphBase"]
+__all__ = ["GraphRecorder" "GraphNavigator"]
