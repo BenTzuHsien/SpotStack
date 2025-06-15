@@ -29,12 +29,10 @@ class GraphRecorder(GraphBase):
         is_new_map : bool, optional
             If False, an existing graph is uploaded and localization is attempted (default is True).
         """
-        super().__init__(robot, graph_path)
-
-        # Create robot clients
-        self._recording_client = self._robot.ensure_client(GraphNavRecordingServiceClient.default_service_name)
-        
+        self._recording_client = robot.ensure_client(GraphNavRecordingServiceClient.default_service_name)   
         self.stop_recording()
+
+        super().__init__(robot, graph_path)
 
         if not is_new_map:
             self._upload_graph_and_snapshots()
