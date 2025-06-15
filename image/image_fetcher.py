@@ -33,10 +33,10 @@ class ImageFetcher:
         'right_fisheye_image': 180
     }
     SOURCE_NUMBER = {
-        'back_fisheye_image': 2,
+        'back_fisheye_image': 3,
         'frontleft_fisheye_image': 0,
         'frontright_fisheye_image': 1,
-        'left_fisheye_image': 3,
+        'left_fisheye_image': 2,
         'right_fisheye_image': 4
     }
 
