@@ -2,7 +2,7 @@ import time
 from SpotStack.power.power_manager import PowerManager
 
 from bosdyn.client.robot_state import RobotStateClient
-from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
+from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder, blocking_stand
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.math_helpers import Quat, SE3Pose
 from bosdyn.client import ResponseError, RpcError

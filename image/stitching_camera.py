@@ -51,13 +51,13 @@ class StitchingCamera:
 
         This sets up a hidden Pygame window with an OpenGL context and loads vertex and fragment shaders from the local asset directory.
         """
-        display = (self.__class__.FRONT_IMAGE_WIDTH, self.__class__.FRONT_IMAGE_HEIGHT)
+        display = (self.FRONT_IMAGE_WIDTH, self.FRONT_IMAGE_HEIGHT)
         pygame.init()
         pygame.display.set_mode(display, pygame.DOUBLEBUF | pygame.OPENGL | pygame.HIDDEN)
 
-        with open(os.path.join(self.__class__.SHADER_ASSET_PATH, 'shader_vert.glsl'), 'r') as file:
+        with open(os.path.join(self.SHADER_ASSET_PATH, 'shader_vert.glsl'), 'r') as file:
             vert_shader = file.read()
-        with open(os.path.join(self.__class__.SHADER_ASSET_PATH, 'shader_frag.glsl'), 'r') as file:
+        with open(os.path.join(self.SHADER_ASSET_PATH, 'shader_frag.glsl'), 'r') as file:
             frag_shader = file.read()
 
         self.stitching_program = CompiledShader(vert_shader, frag_shader)
@@ -128,7 +128,7 @@ class StitchingCamera:
         # Make sure our normal has length 1
         eye_norm_wrt_body = normalize(eye_norm_wrt_body)
 
-        plane_wrt_body = eye_wrt_body + eye_norm_wrt_body * self.__class__.RECT_STITCHING_DISTANCE_METERS
+        plane_wrt_body = eye_wrt_body + eye_norm_wrt_body * self.RECT_STITCHING_DISTANCE_METERS
 
         plane_wrt_vo = mat4mul3(vo_T_body, plane_wrt_body)
         plane_norm_wrt_vo = mat4mul3(vo_T_body, eye_norm_wrt_body, 0)
@@ -144,7 +144,7 @@ class StitchingCamera:
         # draw_routine
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(110, (self.__class__.FRONT_IMAGE_WIDTH / self.__class__.FRONT_IMAGE_HEIGHT), 0.1, 50.0)
+        gluPerspective(110, (self.FRONT_IMAGE_WIDTH / self.FRONT_IMAGE_HEIGHT), 0.1, 50.0)
         if not self.stitching_program.initialized:
             print("Gl is not ready yet.")
             return
@@ -170,16 +170,16 @@ class StitchingCamera:
                         up_wrt_vo[0], up_wrt_vo[1], up_wrt_vo[2])
                 
                 rect_sz_meters = 7
-                self.__class__._draw_geometry(plane_wrt_vo, plane_norm_wrt_vo, rect_sz_meters)
+                self._draw_geometry(plane_wrt_vo, plane_norm_wrt_vo, rect_sz_meters)
 
         # Get Image from OpenGL
         
         # Read pixels from OpenGL framebuffer
         glPixelStorei(GL_PACK_ALIGNMENT, 1)
-        pixels = glReadPixels(0, 0, self.__class__.FRONT_IMAGE_WIDTH, self.__class__.FRONT_IMAGE_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE)
+        pixels = glReadPixels(0, 0, self.FRONT_IMAGE_WIDTH, self.FRONT_IMAGE_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE)
         
         # Convert raw pixel data to a NumPy array
-        image_array = numpy.frombuffer(pixels, dtype=numpy.uint8).reshape(self.__class__.FRONT_IMAGE_HEIGHT, self.__class__.FRONT_IMAGE_WIDTH, 3)
+        image_array = numpy.frombuffer(pixels, dtype=numpy.uint8).reshape(self.FRONT_IMAGE_HEIGHT, self.FRONT_IMAGE_WIDTH, 3)
         
         # OpenGL gives images with inverted Y-axis; flip it
         image_array = numpy.flipud(image_array)

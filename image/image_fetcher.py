@@ -61,7 +61,7 @@ class ImageFetcher:
         self._image_client = robot.ensure_client(ImageClient.default_service_name)
         self._image_request = [
             build_image_request(source, quality_percent=100, pixel_format=pixel_format)
-            for source in self.__class__.sources
+            for source in self.sources
         ]
 
         if use_front_stitching is True:
@@ -168,7 +168,7 @@ class ImageFetcher:
         image_responses = self._image_client.get_image(self._image_request)
 
         for image_response in image_responses:
-            image_number, image = self.__class__._decrypt_image(image_response)
+            image_number, image = self._decrypt_image(image_response, data_transform=data_transform)
             images[image_number] = image
         
         if data_transform:
@@ -208,7 +208,7 @@ class ImageFetcher:
                 front_left = ImagePreppedForOpenGL(image_response)
 
             else:
-                image_number, image = self.__class__._decrypt_image(image_response)
+                image_number, image = self._decrypt_image(image_response, data_transform=data_transform)
                 images[image_number - 1] = image
 
         images[0] = self.stitching_camera.stitch_images(front_right, front_left)
@@ -241,7 +241,7 @@ class ImageFetcher:
         image_responses = self._image_client.get_image(self._image_request)
 
         for image_response in image_responses:
-            image_number, image = self.__class__._decrypt_image(image_response)
+            image_number, image = self._decrypt_image(image_response)
             images[image_number] = image
 
             # Collect Data for Stitching Front Images
