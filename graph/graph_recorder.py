@@ -1,8 +1,7 @@
 import os, time
-from SpotStack.graph.utils.graph_base import GraphBase, graph_nav_util
+from SpotStack.graph.graph_base import GraphBase, graph_nav_util
 
 from bosdyn.api.graph_nav import map_pb2
-from bosdyn.client.math_helpers import Quat, SE3Pose
 from bosdyn.client.recording import GraphNavRecordingServiceClient, NotReadyYetError
 
 class GraphRecorder(GraphBase):
@@ -35,14 +34,7 @@ class GraphRecorder(GraphBase):
         super().__init__(robot, graph_path)
 
         if not is_new_map:
-            self._upload_graph_and_snapshots()
-
-            # we need to be localized to the graph before starting to record
-            localization_state = self._graph_nav_client.get_localization_state()
-
-            if not localization_state.localization.waypoint_id:
-                self._set_initial_localization_fiducial()
-                self._update_graph_waypoint_and_edge_ids()
+            self.load_graph()
 
     # Recording Action functions
     def start_recording(self):
@@ -93,61 +85,6 @@ class GraphRecorder(GraphBase):
         """
         self._recording_client.create_waypoint(waypoint_name=name)
         print(f'Waypoint {name} Recorded.')
-
-    def _get_waypoint(self, id):
-        """
-        Get waypoint from graph (return None if waypoint not found)
-
-        Parameters
-        ----------
-        id : str
-            The ID of the waypoint to retrieve.
-
-        Returns
-        -------
-        map_pb2.Waypoint or None
-            The corresponding waypoint object, or None if not found.
-        """
-        if self._current_graph is None:
-            self._current_graph = self._graph_nav_client.download_graph()
-
-        for waypoint in self._current_graph.waypoints:
-            if waypoint.id == id:
-                return waypoint
-
-        print('ERROR: Waypoint {} not found in graph.'.format(id))
-        return None
-    
-    def _get_transform(self, from_wp, to_wp):
-        """
-        Get transform from from-waypoint to to-waypoint.
-
-        Parameters
-        ----------
-        from_wp : bosdyn.api.graph_nav.map_pb2.Waypoint
-            The source waypoint.
-        to_wp : bosdyn.api.graph_nav.map_pb2.Waypoint
-            The destination waypoint.
-
-        Returns
-        -------
-        bosdyn.api.geometry.SE3Pose
-            The transform from `from_wp` to `to_wp`, in proto format.
-        """
-        from_se3 = from_wp.waypoint_tform_ko
-        from_tf = SE3Pose(
-            from_se3.position.x, from_se3.position.y, from_se3.position.z,
-            Quat(w=from_se3.rotation.w, x=from_se3.rotation.x, y=from_se3.rotation.y,
-                 z=from_se3.rotation.z))
-
-        to_se3 = to_wp.waypoint_tform_ko
-        to_tf = SE3Pose(
-            to_se3.position.x, to_se3.position.y, to_se3.position.z,
-            Quat(w=to_se3.rotation.w, x=to_se3.rotation.x, y=to_se3.rotation.y,
-                 z=to_se3.rotation.z))
-
-        from_T_to = from_tf.mult(to_tf.inverse())
-        return from_T_to.to_proto()
     
     def create_new_edge(self, waypoint1, waypoint2):
         """
@@ -337,5 +274,5 @@ if __name__ == '__main__':
         print("Graph is downloaded !")
 
     except Exception as exc:  # pylint: disable=broad-except
-        print(exc)
         print("GraphRecorder threw an error.")
+        print(exc)

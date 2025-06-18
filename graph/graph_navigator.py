@@ -1,10 +1,9 @@
 import time
-from SpotStack.graph.utils.graph_base import GraphBase, graph_nav_util
+from SpotStack.power.power_manager import PowerManager
+from SpotStack.graph.graph_base import GraphBase, graph_nav_util
 
-from bosdyn.api import robot_state_pb2
-from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder, blocking_stand
+from bosdyn.client.robot_command import RobotCommandClient, blocking_stand
 from bosdyn.client.graph_nav import graph_nav_pb2
-from bosdyn.client.power import PowerClient, power_on, safe_power_off
 from bosdyn.client.exceptions import ResponseError
 
 class GraphNavigator(GraphBase):
@@ -29,97 +28,24 @@ class GraphNavigator(GraphBase):
         super().__init__(robot, graph_path)
 
         # Create robot clients
-        self._command_client = self._robot.ensure_client(RobotCommandClient.default_service_name)
-        self._power_client = self._robot.ensure_client(PowerClient.default_service_name)
-
-        # Boolean indicating the robot's power state.
-        power_state = self._state_client.get_robot_state().power_state
-        self._started_powered_on = (power_state.motor_power_state == power_state.STATE_ON)
-        self._powered_on = self._started_powered_on
+        command_client = self._robot.ensure_client(RobotCommandClient.default_service_name)
+        
+        self._power_manager = PowerManager(robot)
+        self._power_manager.toggle_power(should_power_on=True)
 
         # Setup
-        self._upload_graph_and_snapshots()
+        blocking_stand(command_client)
+        self.load_graph()
 
-        if not self.toggle_power(should_power_on=True):
-            print("Failed to power on the robot, and cannot complete navigate to request.")
-            return
-        
-        blocking_stand(self._command_client)
-        self._set_initial_localization_fiducial()
-        self._update_graph_waypoint_and_edge_ids()
-    
-    def get_waypoint_count(self, prefix=None):
+    def on_quit(self):
         """
-        Return the number of waypoints currently in the graph that match a given prefix.
+        Cleanup method to run when terminating the program.
 
-        Parameters
-        ----------
-        prefix : str, optional
-            The prefix to filter waypoint names. If None, defaults to "Waypoint_".
-
-        Returns
-        -------
-        int
-            The number of waypoints in the currently loaded graph.
+        If the robot was powered on by this instance (not externally), it will be powered off safely.
         """
-        if prefix is not None:
-            num_points = len([key for key in self._current_annotation_name_to_wp_id.keys() if prefix in key])
-        else:
-            num_points = len([key for key in self._current_annotation_name_to_wp_id.keys() if 'Waypoint_' in key])
-
-        return num_points
-
-    # Power Control Section
-    def check_is_powered_on(self):
-        """
-        Check whether the robot is currently powered on.
-
-        Returns
-        -------
-        bool
-            True if Spot's motors are on, False otherwise.
-        """
-        power_state = self._state_client.get_robot_state().power_state
-        self._powered_on = (power_state.motor_power_state == power_state.STATE_ON)
-        return self._powered_on
-    
-    def toggle_power(self, should_power_on):
-        """
-        Power the robot on/off dependent on the current power state.
-        
-        Parameters
-        ----------
-        should_power_on : bool
-            If True, attempts to power on. If False, powers off if needed.
-
-        Returns
-        -------
-        bool
-            True if the robot is powered on after the operation, False otherwise.
-        """
-        is_powered_on = self.check_is_powered_on()
-        if not is_powered_on and should_power_on:
-            # Power on the robot up before navigating when it is in a powered-off state.
-            power_on(self._power_client)
-            motors_on = False
-            while not motors_on:
-                future = self._state_client.get_robot_state_async()
-                state_response = future.result(
-                    timeout=10)  # 10 second timeout for waiting for the state response.
-                if state_response.power_state.motor_power_state == robot_state_pb2.PowerState.STATE_ON:
-                    motors_on = True
-                else:
-                    # Motors are not yet fully powered on.
-                    time.sleep(.25)
-        elif is_powered_on and not should_power_on:
-            # Safe power off (robot will sit then power down) when it is in a powered-on state.
-            safe_power_off(self._command_client, self._state_client)
-        else:
-            # Return the current power state without change.
-            return is_powered_on
-        # Update the locally stored power state.
-        self.check_is_powered_on()
-        return self._powered_on
+        # Sit the robot down + power off after the navigation command is complete.
+        if self._power_manager.check_is_powered_on():
+            self._power_manager.toggle_power(should_power_on=False)
     
     # GraphNav Action Section
     def check_success(self, command_id=-1):
@@ -172,7 +98,7 @@ class GraphNavigator(GraphBase):
         if not destination_waypoint:
             # Failed to find the appropriate unique waypoint id for the navigation command.
             return
-        if not self.toggle_power(should_power_on=True):
+        if not self._power_manager.toggle_power(should_power_on=True):
             print("Failed to power on the robot, and cannot complete navigate to request.")
             return
 
@@ -194,16 +120,6 @@ class GraphNavigator(GraphBase):
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
             # the robot down once it is finished.
             is_finished = self.check_success(nav_to_cmd_id)
-    
-    def on_quit(self):
-        """
-        Cleanup method to run when terminating the program.
-
-        If the robot was powered on by this instance (not externally), it will be powered off safely.
-        """
-        # Sit the robot down + power off after the navigation command is complete.
-        if self._powered_on and not self._started_powered_on:
-            self._command_client.robot_command(RobotCommandBuilder.safe_power_off_command(), end_time_secs=time.time())
 
 # Example Usage
 if __name__ == '__main__':
@@ -250,9 +166,11 @@ if __name__ == '__main__':
                     relative_pose = SE2Pose(position=Vec2(x=1, y=1), angle=0.5)
                     graph_navigator.navigate_to(f'Waypoint_0', relative_pose)
 
+                graph_navigator.on_quit()
+
             except Exception as exc:  # pylint: disable=broad-except
-                print(exc)
                 print("GraphNavigator threw an error.")
+                print(exc)
 
     except ResourceAlreadyClaimedError:
         print(

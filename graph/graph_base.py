@@ -1,11 +1,12 @@
-from . import graph_nav_util
+from SpotStack.graph.utils import graph_nav_util
 
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.graph_nav import GraphNavClient, nav_pb2
 from bosdyn.client.frame_helpers import get_odom_tform_body
+from bosdyn.client.math_helpers import Quat, SE3Pose
 
-class GraphBase(object):
+class GraphBase:
     """
     Base class for managing Spot's navigation graph.
 
@@ -134,3 +135,161 @@ class GraphBase(object):
         # Update and print waypoints and edges
         self._current_annotation_name_to_wp_id, self._current_edges = graph_nav_util.update_waypoints_and_edges(
             graph, localization_id, do_print)
+
+    def load_graph(self):
+        """
+        Load and upload the graph from disk, then localize the robot if needed.
+        """
+        self._upload_graph_and_snapshots()
+
+        localization_state = self._graph_nav_client.get_localization_state()
+        if not localization_state.localization.waypoint_id:
+            self._set_initial_localization_fiducial()
+            self._update_graph_waypoint_and_edge_ids()
+
+    def _get_waypoint(self, id):
+        """
+        Get waypoint from graph (return None if waypoint not found)
+
+        Parameters
+        ----------
+        id : str
+            The ID of the waypoint to retrieve.
+
+        Returns
+        -------
+        map_pb2.Waypoint or None
+            The corresponding waypoint object, or None if not found.
+        """
+        if self._current_graph is None:
+            self._current_graph = self._graph_nav_client.download_graph()
+
+        for waypoint in self._current_graph.waypoints:
+            if waypoint.id == id:
+                return waypoint
+
+        print('ERROR: Waypoint {} not found in graph.'.format(id))
+        return None
+    
+    def _get_transform(self, from_wp, to_wp):
+        """
+        Get transform from from-waypoint to to-waypoint.
+
+        Parameters
+        ----------
+        from_wp : bosdyn.api.graph_nav.map_pb2.Waypoint
+            The source waypoint.
+        to_wp : bosdyn.api.graph_nav.map_pb2.Waypoint
+            The destination waypoint.
+
+        Returns
+        -------
+        bosdyn.api.geometry.SE3Pose
+            The transform from `from_wp` to `to_wp`, in proto format.
+        """
+        from_se3 = from_wp.waypoint_tform_ko
+        from_tf = SE3Pose(
+            from_se3.position.x, from_se3.position.y, from_se3.position.z,
+            Quat(w=from_se3.rotation.w, x=from_se3.rotation.x, y=from_se3.rotation.y,
+                 z=from_se3.rotation.z))
+
+        to_se3 = to_wp.waypoint_tform_ko
+        to_tf = SE3Pose(
+            to_se3.position.x, to_se3.position.y, to_se3.position.z,
+            Quat(w=to_se3.rotation.w, x=to_se3.rotation.x, y=to_se3.rotation.y,
+                 z=to_se3.rotation.z))
+
+        from_T_to = from_tf.mult(to_tf.inverse())
+        return from_T_to.to_proto()
+    
+    def get_waypoint_count(self, prefix=None):
+        """
+        Return the number of waypoints currently in the graph that match a given prefix.
+
+        Parameters
+        ----------
+        prefix : str, optional
+            The prefix to filter waypoint names. If None, defaults to "Waypoint_".
+
+        Returns
+        -------
+        int
+            The number of waypoints in the currently loaded graph.
+        """
+        if prefix is not None:
+            num_points = len([key for key in self._current_annotation_name_to_wp_id.keys() if prefix in key])
+        else:
+            num_points = len([key for key in self._current_annotation_name_to_wp_id.keys() if 'Waypoint_' in key])
+
+        return num_points
+    
+    def get_relative_pose_from_waypoint(self, waypoint_name):
+        """
+        Compute the robot's SE3 pose relative to a specified waypoint.
+
+        Parameters
+        ----------
+        waypoint_name : str
+            The name of the waypoint.
+
+        Returns
+        -------
+        bosdyn.client.math_helpers.SE3Pose
+            The robot's pose relative to the specified waypoint.
+        """
+        waypoint_id = graph_nav_util.find_unique_waypoint_id(waypoint_name, self._current_graph, self._current_annotation_name_to_wp_id)
+
+        localization_state = self._graph_nav_client.get_localization_state()
+        localize_waypoint_id = localization_state.localization.waypoint_id
+
+        if waypoint_id == localize_waypoint_id:
+            relative_pose = SE3Pose.from_proto(localization_state.localization.waypoint_tform_body)
+
+        else:
+            waypoint = self._get_waypoint(waypoint_id)
+            localize_waypoint = self._get_waypoint(localize_waypoint_id)
+            T_wp_locwp = SE3Pose.from_proto(self._get_transform(waypoint, localize_waypoint))
+            waypoint_tform_body_se3 = SE3Pose.from_proto(localization_state.localization.waypoint_tform_body)
+            relative_pose = T_wp_locwp.mult(waypoint_tform_body_se3)
+
+        return relative_pose
+    
+# Example Usage
+if __name__ == '__main__':
+
+    import argparse, bosdyn.client.util, os, sys
+    
+    parser = argparse.ArgumentParser()
+    bosdyn.client.util.add_base_arguments(parser)
+    parser.add_argument('--graph-path',
+                        help='Full filepath to graph.',
+                        default=os.getcwd())
+    options = parser.parse_args(sys.argv[1:])
+
+    # Create robot object
+    sdk = bosdyn.client.create_standard_sdk('GraphBase')
+    robot = sdk.create_robot(options.hostname)
+    bosdyn.client.util.authenticate(robot)
+
+    try:
+        graph_base = GraphBase(robot, options.graph_path)
+        graph_base.load_graph()
+
+        num_waypoints = graph_base.get_waypoint_count()
+        print(f'Nuber of Waypoint: {num_waypoints}')
+        
+        while True:
+            input_str = input("Enter the index of the waypoint to view the robot's pose relative to it, to end type q:")
+            while not input_str.isdigit() and input_str != 'q':
+                print('wrong input')
+                input_str = input("Enter the index of the waypoint to view the robot's pose relative to it, to end type q:")
+            
+            if input_str == 'q':
+                break
+            
+            relative_pose = graph_base.get_relative_pose_from_waypoint(f'Waypoint_{input_str}')
+            print(relative_pose)
+
+    except Exception as exc:  # pylint: disable=broad-except
+        print("GraphBase threw an error.")
+        print(exc)

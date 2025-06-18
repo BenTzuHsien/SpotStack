@@ -19,7 +19,7 @@ def normalize(vec):
         raise ValueError("norm function returned 0.")
     return vec / norm
 
-class StitchingCamera(object):
+class StitchingCamera:
     """
     Virtual OpenGL-based camera for stitching Spot's front fisheye images.
 

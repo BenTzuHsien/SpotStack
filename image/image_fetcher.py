@@ -274,7 +274,7 @@ if __name__ == '__main__':
     options = parser.parse_args(sys.argv[1:])
 
     # Create robot object
-    sdk = bosdyn.client.create_standard_sdk('GraphNavigator')
+    sdk = bosdyn.client.create_standard_sdk('ImageFetcher')
     robot = sdk.create_robot(options.hostname)
     bosdyn.client.util.authenticate(robot)
 
@@ -324,8 +324,8 @@ if __name__ == '__main__':
             past_time = time.time()
 
     except Exception as exc:  # pylint: disable=broad-except
-                print(exc)
                 print("ImageFetcher threw an error.")
+                print(exc)
 
     finally:
         termios.tcsetattr(fd, termios.TCSAFLUSH, old_settings)
