@@ -98,7 +98,7 @@ class ImageFetcher:
         if data_transform:
             img = data_transform(img)
 
-        img_nubmber = cls.SOURCE_NUMBER[image_response.source.name]
+        img_nubmber = cls.SOURCE_NUMBER.get(image_response.source.name, -1)
 
         return img_nubmber, img
     

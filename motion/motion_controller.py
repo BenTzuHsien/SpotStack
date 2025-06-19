@@ -113,7 +113,6 @@ if __name__ == '__main__':
 
     import argparse, bosdyn.client.util, sys
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive, ResourceAlreadyClaimedError
-    from bosdyn.client.robot_command import blocking_stand
     
     parser = argparse.ArgumentParser()
     bosdyn.client.util.add_base_arguments(parser)
