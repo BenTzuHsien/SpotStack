@@ -8,9 +8,29 @@ from bosdyn.client.frame_helpers import GRAV_ALIGNED_BODY_FRAME_NAME, ODOM_FRAME
 from bosdyn.client.image import ImageClient, build_image_request
 
 class ArmBase:
+    """
+    A controller class for manipulating the Spot robot's arm and capturing hand camera images.
+
+    This class abstracts arm motion commands, gripper control, and camera image acquisition, simplifying coordinated arm and perception tasks.
+
+    Attributes
+    ----------
+    sources : str
+        The image source identifier for the hand camera.
+    """
     source = 'hand_color_image'
 
     def __init__(self, robot, pixel_format='PIXEL_FORMAT_RGB_U8'):
+        """
+        Initialize the ArmBase.
+
+        Parameters
+        ----------
+        robot : bosdyn.client.robot.Robot
+            The Spot robot instance.
+        pixel_format : str, optional
+            The pixel format used when requesting images (default is 'PIXEL_FORMAT_RGB_U8').
+        """
         self._state_client = robot.ensure_client(RobotStateClient.default_service_name)
         self._command_client = robot.ensure_client(RobotCommandClient.default_service_name)
 
@@ -21,14 +41,26 @@ class ArmBase:
         self._power_manager.toggle_power(should_power_on=True)
 
     def rest_arm(self):
-
+        """
+        Reset the arm and closes the gripper.
+        This moves the arm to the default rest position, which is typically safe for navigation.
+        """
         reset_command = RobotCommandBuilder.build_synchro_command(RobotCommandBuilder.arm_stow_command(), RobotCommandBuilder.claw_gripper_close_command())
 
         cmd_id = self._command_client.robot_command(reset_command)
         block_until_arm_arrives(self._command_client, cmd_id)
 
     def move_to_pose(self, pose, gripper_open_fraction=0.0):
+        """
+        Moves the arm to a given pose.
 
+        Parameters
+        ----------
+        pose : bosdyn.api.geometry_pb2.SE3Pose
+            The desired end-effector pose.
+        gripper_open_fraction : float
+            Fraction [0.0, 1.0] to open the gripper. 0.0 = closed, 1.0 = fully open. (default is closed)
+        """
         # Get current transformation
         current_state = self._state_client.get_robot_state()
         odom_T_flat_body = get_a_tform_b(current_state.kinematic_state.transforms_snapshot, ODOM_FRAME_NAME, GRAV_ALIGNED_BODY_FRAME_NAME)
@@ -47,7 +79,19 @@ class ArmBase:
         block_until_arm_arrives(self._command_client, cmd_id)
 
     def get_image(self, data_transform=None):
+        """
+        Fetches a single image from the hand color camera.
 
+        Parameters
+        ----------
+        data_transform : Callable, optional
+            Optional transform (e.g., torchvision transform) applied to the PIL image.
+
+        Returns
+        -------
+        PIL.Image or transformed object
+            Decoded and optionally transformed image.
+        """
         image_response = self._image_client.get_image(self._image_request)
         _, image = ImageFetcher._decrypt_image(image_response[0], auto_rotate=False, data_transform=data_transform)
 
