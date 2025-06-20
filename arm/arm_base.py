@@ -22,7 +22,7 @@ class ArmBase:
 
     def rest_arm(self):
 
-        reset_command = RobotCommandBuilder.arm_stow_command()
+        reset_command = RobotCommandBuilder.build_synchro_command(RobotCommandBuilder.arm_stow_command(), RobotCommandBuilder.claw_gripper_close_command())
 
         cmd_id = self._command_client.robot_command(reset_command)
         block_until_arm_arrives(self._command_client, cmd_id)
@@ -93,6 +93,7 @@ if __name__ == '__main__':
                 arm_image.save(image_save_path)
 
                 arm_base.rest_arm()
+                time.sleep(1)
 
             except Exception as exc:  # pylint: disable=broad-except
                 print("ArmBase threw an error.")
