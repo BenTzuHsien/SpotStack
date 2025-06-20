@@ -24,7 +24,7 @@ class ArmBase:
 
         reset_command = RobotCommandBuilder.arm_stow_command()
 
-        cmd_id = command_client.robot_command(reset_command)
+        cmd_id = self._command_client.robot_command(reset_command)
         block_until_arm_arrives(self._command_client, cmd_id)
 
     def move_to_pose(self, pose, gripper_open_fraction=0.0):
