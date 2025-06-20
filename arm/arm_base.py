@@ -20,6 +20,13 @@ class ArmBase:
         self._power_manager = PowerManager(robot)
         self._power_manager.toggle_power(should_power_on=True)
 
+    def rest_arm(self):
+
+        reset_command = RobotCommandBuilder.arm_stow_command()
+
+        cmd_id = command_client.robot_command(reset_command)
+        block_until_arm_arrives(self._command_client, cmd_id)
+
     def move_to_pose(self, pose, gripper_open_fraction=0.0):
 
         # Get current transformation
@@ -84,6 +91,8 @@ if __name__ == '__main__':
 
                 image_save_path = os.path.join(os.path.dirname(__file__), 'arm_image.jpg')
                 arm_image.save(image_save_path)
+
+                arm_base.rest_arm()
 
             except Exception as exc:  # pylint: disable=broad-except
                 print("ArmBase threw an error.")
