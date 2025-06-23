@@ -70,13 +70,13 @@ class GraphNavigator(GraphCore):
             # Successfully completed the navigation commands!
             return True
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
-            print("Robot got lost when navigating the route, the robot will now sit down.")
+            print("GraphNavigator: Robot got lost when navigating the route, the robot will now sit down.")
             return True
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
-            print("Robot got stuck when navigating the route, the robot will now sit down.")
+            print("GraphNavigator: Robot got stuck when navigating the route, the robot will now sit down.")
             return True
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED:
-            print("Robot is impaired.")
+            print("GraphNavigator: Robot is impaired.")
             return True
         else:
             # Navigation command is not complete yet.
@@ -99,7 +99,7 @@ class GraphNavigator(GraphCore):
             # Failed to find the appropriate unique waypoint id for the navigation command.
             return
         if not self._power_manager.toggle_power(should_power_on=True):
-            print("Failed to power on the robot, and cannot complete navigate to request.")
+            print("GraphNavigator: Failed to power on the robot, and cannot complete navigate to request.")
             return
 
         nav_to_cmd_id = None
@@ -114,7 +114,7 @@ class GraphNavigator(GraphCore):
                                                                    destination_waypoint_tform_body_goal=relative_pose)
 
             except ResponseError as e:
-                print("Error while navigating {}".format(e))
+                print("GraphNavigator: Error while navigating {}".format(e))
                 break
             time.sleep(.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit

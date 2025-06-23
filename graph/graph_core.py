@@ -58,18 +58,18 @@ class GraphCore:
         localization = nav_pb2.Localization()
         self._graph_nav_client.set_localization(initial_guess_localization=localization,
                                                 ko_tform_body=current_odom_tform_body)
-        print("Localization based on fiducials completed!")
+        print("GraphCore: Localization based on fiducials completed!")
 
     def _upload_graph_and_snapshots(self):
         """Upload the graph and snapshots to the robot."""
-        print("Loading the graph from disk into local storage...")
+        print("GraphCore: Loading the graph from disk into local storage...")
         with open(self._graph_path + "/graph", "rb") as graph_file:
             
             # Load the graph from disk.
             data = graph_file.read()
             self._current_graph = map_pb2.Graph()
             self._current_graph.ParseFromString(data)
-            print("Loaded graph has {} waypoints and {} edges".format(
+            print("GraphCore: Loaded graph has {} waypoints and {} edges".format(
                 len(self._current_graph.waypoints), len(self._current_graph.edges)))
         for waypoint in self._current_graph.waypoints:
             
@@ -91,7 +91,7 @@ class GraphCore:
                 self._current_edge_snapshots[edge_snapshot.id] = edge_snapshot
         
         # Upload the graph to the robot.
-        print("Uploading the graph and snapshots to the robot...")
+        print("GraphCore: Uploading the graph and snapshots to the robot...")
         true_if_empty = not len(self._current_graph.anchoring.anchors)
         response = self._graph_nav_client.upload_graph(graph=self._current_graph,
                                                        generate_new_anchoring=true_if_empty)
@@ -99,11 +99,11 @@ class GraphCore:
         for snapshot_id in response.unknown_waypoint_snapshot_ids:
             waypoint_snapshot = self._current_waypoint_snapshots[snapshot_id]
             self._graph_nav_client.upload_waypoint_snapshot(waypoint_snapshot)
-            print("Uploaded {}".format(waypoint_snapshot.id))
+            print("GraphCore: Uploaded {}".format(waypoint_snapshot.id))
         for snapshot_id in response.unknown_edge_snapshot_ids:
             edge_snapshot = self._current_edge_snapshots[snapshot_id]
             self._graph_nav_client.upload_edge_snapshot(edge_snapshot)
-            print("Uploaded {}".format(edge_snapshot.id))
+            print("GraphCore: Uploaded {}".format(edge_snapshot.id))
 
         # The upload is complete! Check that the robot is localized to the graph,
         # and if it is not, prompt the user to localize the robot before attempting
@@ -112,7 +112,7 @@ class GraphCore:
         if not localization_state.localization.waypoint_id:
             # The robot is not localized to the newly uploaded graph.
             print("\n")
-            print("Upload complete! The robot is currently not localized to the map")
+            print("GraphCore: Upload complete! The robot is currently not localized to the map")
 
     def _update_graph_waypoint_and_edge_ids(self, do_print=False):
         """
@@ -126,7 +126,7 @@ class GraphCore:
         # Download current graph
         graph = self._graph_nav_client.download_graph()
         if graph is None:
-            print("Empty graph.")
+            print("GraphCore: Empty graph.")
             return
         self._current_graph = graph
 
@@ -168,7 +168,7 @@ class GraphCore:
             if waypoint.id == id:
                 return waypoint
 
-        print('ERROR: Waypoint {} not found in graph.'.format(id))
+        print('GraphCore: ERROR: Waypoint {} not found in graph.'.format(id))
         return None
     
     def _get_transform(self, from_wp, to_wp):

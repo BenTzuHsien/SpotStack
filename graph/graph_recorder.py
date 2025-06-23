@@ -41,9 +41,9 @@ class GraphRecorder(GraphCore):
         """Start recording a map."""
         try:
             status = self._recording_client.start_recording()
-            print("Successfully started recording a map.")
+            print("GraphRecorder: Successfully started recording a map.")
         except Exception as err:
-            print("Start recording failed: " + str(err))
+            print("GraphRecorder: Start recording failed: " + str(err))
 
     def stop_recording(self):
         """Stop or pause recording a map."""
@@ -51,27 +51,27 @@ class GraphRecorder(GraphCore):
         while True:
             try:
                 status = self._recording_client.stop_recording()
-                print("Successfully stopped recording a map.")
+                print("GraphRecorder: Successfully stopped recording a map.")
                 break
             except NotReadyYetError as err:
                 # It is possible that we are not finished recording yet due to
                 # background processing. Try again every 1 second.
                 if first_iter:
-                    print("Cleaning up recording...")
+                    print("GraphRecorder: Cleaning up recording...")
                 first_iter = False
                 time.sleep(1.0)
                 continue
             except Exception as err:
-                print("Stop recording failed: " + str(err))
+                print("GraphRecorder: Stop recording failed: " + str(err))
                 break
 
     def get_recording_status(self):
         """Get the recording service's status."""
         status = self._recording_client.get_record_status()
         if status.is_recording:
-            print("The recording service is on.")
+            print("GraphRecorder: The recording service is on.")
         else:
-            print("The recording service is off.")
+            print("GraphRecorder: The recording service is off.")
         return status
 
     def record_waypoint(self, name):
@@ -84,7 +84,7 @@ class GraphRecorder(GraphCore):
             Name to assign to the waypoint.
         """
         self._recording_client.create_waypoint(waypoint_name=name)
-        print(f'Waypoint {name} Recorded.')
+        print(f'GraphRecorder: Waypoint {name} Recorded.')
     
     def create_new_edge(self, waypoint1, waypoint2):
         """
@@ -104,7 +104,7 @@ class GraphRecorder(GraphCore):
         to_id = graph_nav_util.find_unique_waypoint_id(waypoint2, self._current_graph,
                                                        self._current_annotation_name_to_wp_id)
 
-        print("Creating edge from {} to {}.".format(from_id, to_id))
+        print("GraphRecorder: Creating edge from {} to {}.".format(from_id, to_id))
 
         from_wp = self._get_waypoint(from_id)
         if from_wp is None:
@@ -127,7 +127,7 @@ class GraphRecorder(GraphCore):
         try:
             self._recording_client.create_edge(edge=new_edge)
         except Exception as e:
-            print(e)
+            print(f'GraphRecorder: error creating an edge. {e}')
 
     # Download graph
     def _write_bytes(self, filepath, filename, data):
@@ -178,12 +178,12 @@ class GraphRecorder(GraphCore):
                     waypoint.snapshot_id)
             except Exception:
                 # Failure in downloading waypoint snapshot. Continue to next snapshot.
-                print("Failed to download waypoint snapshot: " + waypoint.snapshot_id)
+                print("GraphRecorder: Failed to download waypoint snapshot: " + waypoint.snapshot_id)
                 continue
             self._write_bytes(self._graph_path + '/waypoint_snapshots',
                               '/' + waypoint.snapshot_id, waypoint_snapshot.SerializeToString())
             num_waypoint_snapshots_downloaded += 1
-            print("Downloaded {} of the total {} waypoint snapshots.".format(
+            print("GraphRecorder: Downloaded {} of the total {} waypoint snapshots.".format(
                 num_waypoint_snapshots_downloaded, len(waypoints)))
 
     def _download_and_write_edge_snapshots(self, edges):
@@ -205,12 +205,12 @@ class GraphRecorder(GraphCore):
                 edge_snapshot = self._graph_nav_client.download_edge_snapshot(edge.snapshot_id)
             except Exception:
                 # Failure in downloading edge snapshot. Continue to next snapshot.
-                print("Failed to download edge snapshot: " + edge.snapshot_id)
+                print("GraphRecorder: Failed to download edge snapshot: " + edge.snapshot_id)
                 continue
             self._write_bytes(self._graph_path + '/edge_snapshots', '/' + edge.snapshot_id,
                               edge_snapshot.SerializeToString())
             num_edge_snapshots_downloaded += 1
-            print("Downloaded {} of the total {} edge snapshots.".format(
+            print("GraphRecorder: Downloaded {} of the total {} edge snapshots.".format(
                 num_edge_snapshots_downloaded, num_to_download))
 
     def download_full_graph(self):
@@ -226,10 +226,10 @@ class GraphRecorder(GraphCore):
         """
         graph = self._graph_nav_client.download_graph()
         if graph is None:
-            print("Failed to download the graph.")
+            print("GraphRecorder: Failed to download the graph.")
             return
         self._write_full_graph(graph)
-        print("Graph downloaded with {} waypoints and {} edges".format(
+        print("GraphRecorder: Graph downloaded with {} waypoints and {} edges".format(
             len(graph.waypoints), len(graph.edges)))
         # Download the waypoint and edge snapshots.
         self._download_and_write_waypoint_snapshots(graph.waypoints)

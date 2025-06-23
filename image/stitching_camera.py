@@ -146,7 +146,7 @@ class StitchingCamera:
         glLoadIdentity()
         gluPerspective(110, (self.FRONT_IMAGE_WIDTH / self.FRONT_IMAGE_HEIGHT), 0.1, 50.0)
         if not self.stitching_program.initialized:
-            print("Gl is not ready yet.")
+            print("StitchingCamera: Gl is not ready yet.")
             return
         
         glUseProgram(self.stitching_program.program)

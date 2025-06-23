@@ -72,7 +72,7 @@ class MotionController:
             self._command_client.robot_command(command=velocity_command, end_time_secs=time.time() + duration)
         
         except (ResponseError, RpcError, LeaseBaseError) as err:
-            print(f"Velocity Command Failed: {err}")
+            print(f"MotionController: Velocity Command Failed: {err}")
 
     def send_displacement_command(self, d_x, d_y, d_yaw):
         """
@@ -106,7 +106,7 @@ class MotionController:
             self._command_client.robot_command(command=displacement_command, end_time_secs=time.time() + 5)
         
         except (ResponseError, RpcError, LeaseBaseError) as err:
-            print(f"Displacement Command Failed: {err}")
+            print(f"MotionController: Displacement Command Failed: {err}")
 
 # Example Usage
 if __name__ == '__main__':
