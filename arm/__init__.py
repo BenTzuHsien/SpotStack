@@ -1,4 +1,4 @@
 
-from .arm_base import ArmBase
+from .arm_core import ArmCore
 
-__all__ = ["ArmBase"]
+__all__ = ["ArmCore"]

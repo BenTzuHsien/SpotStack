@@ -6,8 +6,11 @@ from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder,
 from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.frame_helpers import GRAV_ALIGNED_BODY_FRAME_NAME, ODOM_FRAME_NAME, get_a_tform_b
 from bosdyn.client.image import ImageClient, build_image_request
+from bosdyn.client.gripper_camera_param import GripperCameraParamClient
+from bosdyn.api import header_pb2
+from bosdyn.api.gripper_camera_param_pb2 import GripperCameraParams, GripperCameraParamRequest
 
-class ArmBase:
+class ArmCore:
     """
     A controller class for manipulating the Spot robot's arm and capturing hand camera images.
 
@@ -20,26 +23,45 @@ class ArmBase:
     """
     source = 'hand_color_image'
 
-    def __init__(self, robot, pixel_format='PIXEL_FORMAT_RGB_U8'):
+    def __init__(self, robot, resolution='1920x1080'):
         """
-        Initialize the ArmBase.
+        Initialize the ArmCore.
 
         Parameters
         ----------
         robot : bosdyn.client.robot.Robot
             The Spot robot instance.
-        pixel_format : str, optional
-            The pixel format used when requesting images (default is 'PIXEL_FORMAT_RGB_U8').
+        resolution : str, optional
+            The resolution for the gripper camera (default is '1920x1080').
         """
         self._state_client = robot.ensure_client(RobotStateClient.default_service_name)
         self._command_client = robot.ensure_client(RobotCommandClient.default_service_name)
 
+        # Gripper Camera Setup
         self._image_client = robot.ensure_client(ImageClient.default_service_name)
-        self._image_request = [build_image_request(self.source, quality_percent=100, pixel_format=pixel_format)]
+        self._image_request = [build_image_request(self.source, quality_percent=100, pixel_format='PIXEL_FORMAT_RGB_U8')]
+        self._gripper_camera_param_client = robot.ensure_client(GripperCameraParamClient.default_service_name)
+
+        # Setup the gripper camera resolution
+        params = {}
+        if resolution == '640x480':
+            params['camera_mode'] = GripperCameraParams.MODE_640_480_120FPS_UYVY
+        elif resolution == '1280x720':
+            params['camera_mode'] = GripperCameraParams.MODE_1280_720_60FPS_UYVY
+        elif resolution == '1920x1080':
+            params['camera_mode'] = GripperCameraParams.MODE_1920_1080_60FPS_MJPG
+        elif resolution == '3840x2160':
+            params['camera_mode'] = GripperCameraParams.MODE_3840_2160_30FPS_MJPG
+        elif resolution == '4096x2160':
+            params['camera_mode'] = GripperCameraParams.MODE_4096_2160_30FPS_MJPG
+        elif resolution == '4208x3120':
+            params['camera_mode'] = GripperCameraParams.MODE_4208_3120_20FPS_MJPG
+        self.set_camera_param(params)
 
         self._power_manager = PowerManager(robot)
         self._power_manager.toggle_power(should_power_on=True)
 
+    # Motion Control
     def rest_arm(self):
         """
         Reset the arm and closes the gripper.
@@ -78,6 +100,38 @@ class ArmBase:
         cmd_id = self._command_client.robot_command(command=arm_gripper_command)
         block_until_arm_arrives(self._command_client, cmd_id)
 
+    # Camera
+    def set_camera_param(self, param_dict):
+        """
+        Sets parameters for the gripper (hand) camera.
+        
+        For the full list of configurable parameters, refer to:
+        https://dev.bostondynamics.com/protos/bosdyn/api/proto_reference.html#grippercameraparams
+
+        Parameters
+        ----------
+        param_dict : dict
+            A dictionary mapping field names in `GripperCameraParams` to their desired values.
+            Only valid fields will be set. Invalid field names will be ignored with a warning.
+        """
+        params = GripperCameraParams()
+        valid_fields = {f.name for f in GripperCameraParams.DESCRIPTOR.fields}
+
+        for field_name, value in param_dict.items():
+            if field_name not in valid_fields:
+                print(f'{field_name} is not a valid field in GripperCameraParams')
+                continue
+            try:
+                setattr(params, field_name, value)
+            except (TypeError, ValueError) as e:
+                print(f"Invalid value for {field_name}: {value} ({e})")
+
+        request = GripperCameraParamRequest(params=params)
+        response = self._gripper_camera_param_client.set_camera_params(request)
+
+        if response.header.error and response.header.error.code != header_pb2.CommonError.CODE_OK:
+            print(f'Setting gripper camera params get an error: {response.header.error}')
+    
     def get_image(self, data_transform=None):
         """
         Fetches a single image from the hand color camera.
@@ -111,7 +165,7 @@ if __name__ == '__main__':
     options = parser.parse_args(sys.argv[1:])
 
     # Create robot object
-    sdk = bosdyn.client.create_standard_sdk('ArmBase')
+    sdk = bosdyn.client.create_standard_sdk('ArmCore')
     robot = sdk.create_robot(options.hostname)
     bosdyn.client.util.authenticate(robot)
 
@@ -120,27 +174,26 @@ if __name__ == '__main__':
     try:
         with LeaseKeepAlive(lease_client, must_acquire=True, return_at_exit=True):
             try:
-                arm_base = ArmBase(robot)
+                arm_core = ArmCore(robot, resolution='4208x3120')
                 blocking_stand(command_client)
 
                 hand_ewrt_flat_body = geometry_pb2.Vec3(x=0.6, y=0.0, z=0.65)
                 flat_body_Q_hand = Quat.from_pitch(0.5).to_proto()
                 flat_body_T_hand = geometry_pb2.SE3Pose(position=hand_ewrt_flat_body, rotation=flat_body_Q_hand)
 
-                arm_base.move_to_pose(flat_body_T_hand, 1)
-                time.sleep(1)
+                arm_core.move_to_pose(flat_body_T_hand, 1)
+                time.sleep(2)
                 
-                arm_image = arm_base.get_image()
-                time.sleep(1)
+                arm_image = arm_core.get_image()
 
                 image_save_path = os.path.join(os.path.dirname(__file__), 'arm_image.jpg')
                 arm_image.save(image_save_path)
 
-                arm_base.rest_arm()
+                arm_core.rest_arm()
                 time.sleep(1)
 
             except Exception as exc:  # pylint: disable=broad-except
-                print("ArmBase threw an error.")
+                print("ArmCore threw an error.")
                 print(exc)
 
     except ResourceAlreadyClaimedError:

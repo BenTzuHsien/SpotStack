@@ -1,12 +1,12 @@
 import time
 from SpotStack.power.power_manager import PowerManager
-from SpotStack.graph.graph_base import GraphBase, graph_nav_util
+from SpotStack.graph.graph_core import GraphCore, graph_nav_util
 
 from bosdyn.client.robot_command import RobotCommandClient, blocking_stand
 from bosdyn.client.graph_nav import graph_nav_pb2
 from bosdyn.client.exceptions import ResponseError
 
-class GraphNavigator(GraphBase):
+class GraphNavigator(GraphCore):
     """
     Class for navigating GraphNav maps with Spot.
 

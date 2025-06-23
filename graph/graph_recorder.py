@@ -1,10 +1,10 @@
 import os, time
-from SpotStack.graph.graph_base import GraphBase, graph_nav_util
+from SpotStack.graph.graph_core import GraphCore, graph_nav_util
 
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.client.recording import GraphNavRecordingServiceClient, NotReadyYetError
 
-class GraphRecorder(GraphBase):
+class GraphRecorder(GraphCore):
     """
     Class for recording GraphNav maps with Spot.
 

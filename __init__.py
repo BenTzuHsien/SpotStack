@@ -1,9 +1,9 @@
 
 #Arm
-from .arm.arm_base import ArmBase
+from .arm.arm_core import ArmCore
 
 # Graph
-from .graph.graph_base import GraphBase
+from .graph.graph_core import GraphCore
 from .graph.graph_recorder import GraphRecorder
 from .graph.graph_navigator import GraphNavigator
 
@@ -17,4 +17,4 @@ from .motion.motion_controller import MotionController
 # Power
 from .power.power_manager import PowerManager
 
-__all__ = ["GraphBase", "GraphRecorder", "GraphNavigator", "ImageFetcher", "StitchingCamera", "MotionController", "PowerManager"]
+__all__ = ["ArmCore", "GraphCore", "GraphRecorder", "GraphNavigator", "ImageFetcher", "StitchingCamera", "MotionController", "PowerManager"]

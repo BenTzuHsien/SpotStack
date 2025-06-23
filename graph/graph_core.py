@@ -6,7 +6,7 @@ from bosdyn.client.graph_nav import GraphNavClient, nav_pb2
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.math_helpers import Quat, SE3Pose
 
-class GraphBase:
+class GraphCore:
     """
     Base class for managing Spot's navigation graph.
 
@@ -16,7 +16,7 @@ class GraphBase:
 
     def __init__(self, robot, graph_path):
         """
-        Initialize the GraphBase class.
+        Initialize the GraphCore class.
 
         Parameters
         ----------
@@ -267,15 +267,15 @@ if __name__ == '__main__':
     options = parser.parse_args(sys.argv[1:])
 
     # Create robot object
-    sdk = bosdyn.client.create_standard_sdk('GraphBase')
+    sdk = bosdyn.client.create_standard_sdk('GraphCore')
     robot = sdk.create_robot(options.hostname)
     bosdyn.client.util.authenticate(robot)
 
     try:
-        graph_base = GraphBase(robot, options.graph_path)
-        graph_base.load_graph()
+        graph_core = GraphCore(robot, options.graph_path)
+        graph_core.load_graph()
 
-        num_waypoints = graph_base.get_waypoint_count()
+        num_waypoints = graph_core.get_waypoint_count()
         print(f'Nuber of Waypoint: {num_waypoints}')
         
         while True:
@@ -287,9 +287,9 @@ if __name__ == '__main__':
             if input_str == 'q':
                 break
             
-            relative_pose = graph_base.get_relative_pose_from_waypoint(f'Waypoint_{input_str}')
+            relative_pose = graph_core.get_relative_pose_from_waypoint(f'Waypoint_{input_str}')
             print(relative_pose)
 
     except Exception as exc:  # pylint: disable=broad-except
-        print("GraphBase threw an error.")
+        print("GraphCore threw an error.")
         print(exc)
