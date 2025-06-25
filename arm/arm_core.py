@@ -3,7 +3,6 @@ from SpotStack.image.image_fetcher import ImageFetcher
 
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder, block_until_arm_arrives
-from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.frame_helpers import GRAV_ALIGNED_BODY_FRAME_NAME, ODOM_FRAME_NAME, get_a_tform_b
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.gripper_camera_param import GripperCameraParamClient
@@ -72,27 +71,33 @@ class ArmCore:
         cmd_id = self._command_client.robot_command(reset_command)
         block_until_arm_arrives(self._command_client, cmd_id)
 
-    def move_to_pose(self, pose, gripper_open_fraction=0.0):
+    def move_to_pose(self, pose, gripper_open_fraction=0.0, use_world_frame=False):
         """
-        Moves the arm to a given pose.
+        Moves the robot's arm to a specified 6-DoF pose. 
+        When using the world frame as reference, the arm maintains its position relative to the world, regardless of base movement.
 
         Parameters
         ----------
-        pose : bosdyn.api.geometry_pb2.SE3Pose
-            The desired end-effector pose.
+        pose : bosdyn.client.math_helpers.SE3Pose
+            The desired end-effector pose relative to body frame.
         gripper_open_fraction : float
-            Fraction [0.0, 1.0] to open the gripper. 0.0 = closed, 1.0 = fully open. (default is closed)
+            Fraction [0.0, 1.0] to open the gripper. closed=0.0, fully open=1.0. (default is closed)
+        use_world_frame : bool, optional
+            If True, interprets the target pose in the world frame (Odom). Otherwise, interprets it in the robot's body frame. Default is False.
         """
-        # Get current transformation
-        current_state = self._state_client.get_robot_state()
-        odom_T_flat_body = get_a_tform_b(current_state.kinematic_state.transforms_snapshot, ODOM_FRAME_NAME, GRAV_ALIGNED_BODY_FRAME_NAME)
-
         # Arm command
-        odom_T_hand = odom_T_flat_body * SE3Pose.from_obj(pose)
-        arm_command = RobotCommandBuilder.arm_pose_command(
-            odom_T_hand.x, odom_T_hand.y, odom_T_hand.z, odom_T_hand.rot.w, odom_T_hand.rot.x,
-            odom_T_hand.rot.y, odom_T_hand.rot.z, ODOM_FRAME_NAME, seconds=2)
+        if use_world_frame:
+            # Get current transformation
+            current_state = self._state_client.get_robot_state()
+            odom_T_flat_body = get_a_tform_b(current_state.kinematic_state.transforms_snapshot, ODOM_FRAME_NAME, GRAV_ALIGNED_BODY_FRAME_NAME)
 
+            odom_T_hand = odom_T_flat_body * pose
+            arm_command = RobotCommandBuilder.arm_pose_command(
+                odom_T_hand.x, odom_T_hand.y, odom_T_hand.z, odom_T_hand.rot.w, odom_T_hand.rot.x,
+                odom_T_hand.rot.y, odom_T_hand.rot.z, ODOM_FRAME_NAME, seconds=2)
+        else:
+            arm_command = RobotCommandBuilder.arm_pose_command(pose.x, pose.y, pose.z, pose.rot.w, pose.rot.x,pose.rot.y, pose.rot.z, GRAV_ALIGNED_BODY_FRAME_NAME, seconds=2)
+        
         # Gripper command
         gripper_command = RobotCommandBuilder.claw_gripper_open_fraction_command(gripper_open_fraction)
 
@@ -157,8 +162,7 @@ if __name__ == '__main__':
     import argparse, bosdyn.client.util, sys, os, time
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive, ResourceAlreadyClaimedError
     from bosdyn.client.robot_command import blocking_stand
-    from bosdyn.api import geometry_pb2
-    from bosdyn.client.math_helpers import Quat
+    from bosdyn.client.math_helpers import Quat, SE3Pose
     
     parser = argparse.ArgumentParser()
     bosdyn.client.util.add_base_arguments(parser)
@@ -177,9 +181,8 @@ if __name__ == '__main__':
                 arm_core = ArmCore(robot, resolution='4208x3120')
                 blocking_stand(command_client)
 
-                hand_ewrt_flat_body = geometry_pb2.Vec3(x=0.6, y=0.0, z=0.65)
-                flat_body_Q_hand = Quat.from_pitch(0.5).to_proto()
-                flat_body_T_hand = geometry_pb2.SE3Pose(position=hand_ewrt_flat_body, rotation=flat_body_Q_hand)
+                flat_body_Q_hand = Quat.from_pitch(1.2)
+                flat_body_T_hand = SE3Pose(x=0.6, y=0.0, z=0.45, rot=flat_body_Q_hand)
 
                 arm_core.move_to_pose(flat_body_T_hand, 1)
                 time.sleep(2)

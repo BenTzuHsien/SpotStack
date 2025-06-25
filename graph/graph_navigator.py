@@ -48,7 +48,7 @@ class GraphNavigator(GraphCore):
             self._power_manager.toggle_power(should_power_on=False)
     
     # GraphNav Action Section
-    def check_success(self, command_id=-1):
+    def _check_success(self, command_id):
         """
         Use a navigation command id to get feedback from the robot.
 
@@ -62,7 +62,7 @@ class GraphNavigator(GraphCore):
         bool
             True if the navigation goal is reached or failed definitively (e.g., stuck or lost).
         """
-        if command_id == -1:
+        if command_id == None:
             # No command, so we have no status to check.
             return False
         status = self._graph_nav_client.navigation_feedback(command_id)
@@ -93,8 +93,7 @@ class GraphNavigator(GraphCore):
         relative_pose : bosdyn.api.geometry_pb2.SE2Pose, optional
             A pose offset relative to the destination waypoint.
         """
-        destination_waypoint = graph_nav_util.find_unique_waypoint_id(
-            waypoint_name, self._current_graph, self._current_annotation_name_to_wp_id)
+        destination_waypoint = graph_nav_util.find_unique_waypoint_id(waypoint_name, self._current_graph, self._current_annotation_name_to_wp_id)
         if not destination_waypoint:
             # Failed to find the appropriate unique waypoint id for the navigation command.
             return
@@ -106,8 +105,7 @@ class GraphNavigator(GraphCore):
         is_finished = False
         # Navigate to the destination waypoint.
         while not is_finished:
-            # Issue the navigation command about twice a second such that it is easy to terminate the
-            # navigation command (with estop or killing the program).
+            # Issue the navigation command about twice a second such that it is easy to terminate the navigation command (with estop or killing the program).
             try:
                 nav_to_cmd_id = self._graph_nav_client.navigate_to(destination_waypoint, 1.0,
                                                                    command_id=nav_to_cmd_id,
@@ -117,9 +115,8 @@ class GraphNavigator(GraphCore):
                 print("GraphNavigator: Error while navigating {}".format(e))
                 break
             time.sleep(.5)  # Sleep for half a second to allow for command execution.
-            # Poll the robot for feedback to determine if the navigation command is complete. Then sit
-            # the robot down once it is finished.
-            is_finished = self.check_success(nav_to_cmd_id)
+            # Poll the robot for feedback to determine if the navigation command is complete.
+            is_finished = self._check_success(nav_to_cmd_id)
 
 # Example Usage
 if __name__ == '__main__':
