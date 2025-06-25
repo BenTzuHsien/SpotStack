@@ -111,6 +111,51 @@ class MotionController:
 # Example Usage
 if __name__ == '__main__':
 
+    import curses
+    KEYBOARD_LOOKUP = {
+        'w': (0.5, 0.0, 0.0),   # forward in x
+        's': (-0.5, 0.0, 0.0),  # backward in x
+        'a': (0.0, 0.5, 0.0),   # left in y
+        'd': (0.0, -0.5, 0.0),  # right in y
+        'q': (0.0, 0.0, 0.5),   # rotate left (yaw)
+        'e': (0.0, 0.0, -0.5)   # rotate right (yaw)
+    }
+    def flush_input(stdscr):
+        """Flush the input buffer by calling getch until empty."""
+        stdscr.nodelay(True)  # Ensure non-blocking mode
+        while stdscr.getch() != -1:
+            pass
+    def drive(stdscr, motion_controller):
+        curses.curs_set(0)
+        stdscr.nodelay(True)
+        stdscr.clear()
+        stdscr.addstr(0, 0, "WASD to move, Q/E to rotate, X to exit.")
+        stdscr.refresh()
+        flush_input(stdscr)
+
+        is_finished = False
+        while not is_finished:
+            key = stdscr.getch()
+
+            if key == -1:
+                continue
+
+            elif key == ord('x'):
+                is_finished = True
+
+            else:
+                try:
+                    action = KEYBOARD_LOOKUP.get(chr(key), (0, 0, 0))
+                    motion_controller.send_velocity_command(action[0], action[1], action[2], 0.6)
+                    flush_input(stdscr)
+
+                except ValueError:
+                    continue
+            
+            time.sleep(0.1)
+
+        motion_controller.on_quit()
+
     import argparse, bosdyn.client.util, sys
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive, ResourceAlreadyClaimedError
     
@@ -129,18 +174,7 @@ if __name__ == '__main__':
             try:
                 motion_controller = MotionController(robot)
                 
-                # Velocity
-                motion_controller.send_velocity_command(1, 0, 0, duration=1)
-                time.sleep(2)
-
-                motion_controller.send_velocity_command(0, 0, 0, duration=5)
-                time.sleep(2)
-
-                # Displacement
-                motion_controller.send_displacement_command(0.2, 0, 0)
-                time.sleep(2)
-
-                motion_controller.on_quit()
+                curses.wrapper(drive, motion_controller)
 
             except Exception as exc:  # pylint: disable=broad-except
                 print("MotionController threw an error.")
