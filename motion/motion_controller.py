@@ -154,8 +154,6 @@ if __name__ == '__main__':
             
             time.sleep(0.1)
 
-        motion_controller.on_quit()
-
     import argparse, bosdyn.client.util, sys
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive, ResourceAlreadyClaimedError
     

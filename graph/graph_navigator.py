@@ -163,8 +163,6 @@ if __name__ == '__main__':
                     relative_pose = SE2Pose(position=Vec2(x=0.5, y=0.5), angle=0.5)
                     graph_navigator.navigate_to(f'Waypoint_0', relative_pose)
 
-                graph_navigator.on_quit()
-
             except Exception as exc:  # pylint: disable=broad-except
                 print("GraphNavigator threw an error.")
                 print(exc)
