@@ -1,5 +1,3 @@
-from SpotStack.graph.utils import graph_nav_util
-
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.graph_nav import GraphNavClient, nav_pb2
@@ -37,7 +35,6 @@ class GraphCore:
 
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._current_graph = None
-        self._current_edges = dict()  #maps to_waypoint to list(from_waypoint)
         self._current_waypoint_snapshots = dict()  # maps id to waypoint snapshot
         self._current_edge_snapshots = dict()  # maps id to edge snapshot
         self._current_annotation_name_to_wp_id = dict()
@@ -61,7 +58,10 @@ class GraphCore:
         print("GraphCore: Localization based on fiducials completed!")
 
     def _upload_graph_and_snapshots(self):
-        """Upload the graph and snapshots to the robot."""
+        """
+        Uploads the graph and associated snapshots from disk to the robot.
+        Also checks localization status and prompts localization if needed.
+        """
         print("GraphCore: Loading the graph from disk into local storage...")
         with open(self._graph_path + "/graph", "rb") as graph_file:
             
@@ -114,14 +114,9 @@ class GraphCore:
             print("\n")
             print("GraphCore: Upload complete! The robot is currently not localized to the map")
 
-    def _update_graph_waypoint_and_edge_ids(self, do_print=False):
+    def _update_graph_waypoint_and_edge_ids(self):
         """
-        Update internal dictionaries of waypoints and edges from the current robot map.
-
-        Parameters
-        ----------
-        do_print : bool, optional
-            Whether to print the waypoint and edge ID mappings to stdout.
+        Download the current graph and update waypoint name-to-ID mappings.
         """
         # Download current graph
         graph = self._graph_nav_client.download_graph()
@@ -130,11 +125,9 @@ class GraphCore:
             return
         self._current_graph = graph
 
-        localization_id = self._graph_nav_client.get_localization_state().localization.waypoint_id
-
-        # Update and print waypoints and edges
-        self._current_annotation_name_to_wp_id, self._current_edges = graph_nav_util.update_waypoints_and_edges(
-            graph, localization_id, do_print)
+        # Update name to waypoint_id dict
+        for waypoint in graph.waypoints:
+            self._current_annotation_name_to_wp_id[waypoint.annotations.name] = waypoint.id
 
     def load_graph(self):
         """
@@ -147,14 +140,16 @@ class GraphCore:
             self._set_initial_localization_fiducial()
             self._update_graph_waypoint_and_edge_ids()
 
-    def _get_waypoint(self, id):
+    def _get_waypoint(self, waypoint_identifier, is_name=False):
         """
-        Get waypoint from graph (return None if waypoint not found)
+        Retrieve a waypoint from the graph by ID or name.
 
         Parameters
         ----------
-        id : str
-            The ID of the waypoint to retrieve.
+        waypoint_identifier : str
+            The ID or name of the waypoint to retrieve.
+        is_name : bool, optional
+            If True, interpret `waypoint_identifier` as a name. Otherwise, treat it as an ID.
 
         Returns
         -------
@@ -164,14 +159,20 @@ class GraphCore:
         if self._current_graph is None:
             self._current_graph = self._graph_nav_client.download_graph()
 
-        for waypoint in self._current_graph.waypoints:
-            if waypoint.id == id:
-                return waypoint
+        if is_name:
+            for waypoint in self._current_graph.waypoints:
+                if waypoint.annotations.name == waypoint_identifier:
+                    return waypoint
+            
+        else:
+            for waypoint in self._current_graph.waypoints:
+                if waypoint.id == waypoint_identifier:
+                    return waypoint
 
-        print('GraphCore: ERROR: Waypoint {} not found in graph.'.format(id))
+        print(f'GraphCore: ERROR: Waypoint {waypoint_identifier} not found in graph.')
         return None
     
-    def _get_transform(self, from_wp, to_wp):
+    def _get_transform_between_waypoints(self, from_wp, to_wp):
         """
         Get transform from from-waypoint to to-waypoint.
 
@@ -202,26 +203,21 @@ class GraphCore:
         from_T_to = from_tf.mult(to_tf.inverse())
         return from_T_to.to_proto()
     
-    def get_waypoint_count(self, prefix=None):
+    def get_waypoint_count(self, prefix='Waypoint_'):
         """
-        Return the number of waypoints currently in the graph that match a given prefix.
+        Return the number of waypoints with names that start with the given prefix.
 
         Parameters
         ----------
         prefix : str, optional
-            The prefix to filter waypoint names. If None, defaults to "Waypoint_".
+            The prefix to filter waypoint names. Defaults to "Waypoint_".
 
         Returns
         -------
         int
             The number of waypoints in the currently loaded graph.
         """
-        if prefix is not None:
-            num_points = len([key for key in self._current_annotation_name_to_wp_id.keys() if prefix in key])
-        else:
-            num_points = len([key for key in self._current_annotation_name_to_wp_id.keys() if 'Waypoint_' in key])
-
-        return num_points
+        return len([key for key in self._current_annotation_name_to_wp_id if key.startswith(prefix)])
     
     def get_relative_pose_from_waypoint(self, waypoint_name):
         """
@@ -237,7 +233,7 @@ class GraphCore:
         bosdyn.client.math_helpers.SE3Pose
             The robot's pose relative to the specified waypoint.
         """
-        waypoint_id = graph_nav_util.find_unique_waypoint_id(waypoint_name, self._current_graph, self._current_annotation_name_to_wp_id)
+        waypoint_id = self._current_annotation_name_to_wp_id[waypoint_name]
 
         localization_state = self._graph_nav_client.get_localization_state()
         localize_waypoint_id = localization_state.localization.waypoint_id
@@ -248,7 +244,7 @@ class GraphCore:
         else:
             waypoint = self._get_waypoint(waypoint_id)
             localize_waypoint = self._get_waypoint(localize_waypoint_id)
-            T_wp_locwp = SE3Pose.from_proto(self._get_transform(waypoint, localize_waypoint))
+            T_wp_locwp = SE3Pose.from_proto(self._get_transform_between_waypoints(waypoint, localize_waypoint))
             waypoint_tform_body_se3 = SE3Pose.from_proto(localization_state.localization.waypoint_tform_body)
             relative_pose = T_wp_locwp.mult(waypoint_tform_body_se3)
 
@@ -276,7 +272,7 @@ if __name__ == '__main__':
         graph_core.load_graph()
 
         num_waypoints = graph_core.get_waypoint_count()
-        print(f'Nuber of Waypoint: {num_waypoints}')
+        print(f'Number of Waypoints: {num_waypoints}')
         
         while True:
             input_str = input("Enter the index of the waypoint to view the robot's pose relative to it, to end type q:")

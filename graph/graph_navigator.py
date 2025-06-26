@@ -1,6 +1,6 @@
 import time
 from SpotStack.power.power_manager import PowerManager
-from SpotStack.graph.graph_core import GraphCore, graph_nav_util
+from SpotStack.graph.graph_core import GraphCore
 
 from bosdyn.client.robot_command import RobotCommandClient, blocking_stand
 from bosdyn.client.graph_nav import graph_nav_pb2
@@ -62,7 +62,7 @@ class GraphNavigator(GraphCore):
         bool
             True if the navigation goal is reached or failed definitively (e.g., stuck or lost).
         """
-        if command_id == None:
+        if command_id is None:
             # No command, so we have no status to check.
             return False
         status = self._graph_nav_client.navigation_feedback(command_id)
@@ -93,8 +93,8 @@ class GraphNavigator(GraphCore):
         relative_pose : bosdyn.api.geometry_pb2.SE2Pose, optional
             A pose offset relative to the destination waypoint.
         """
-        destination_waypoint = graph_nav_util.find_unique_waypoint_id(waypoint_name, self._current_graph, self._current_annotation_name_to_wp_id)
-        if not destination_waypoint:
+        destination_waypoint_id = self._current_annotation_name_to_wp_id[waypoint_name]
+        if not destination_waypoint_id:
             # Failed to find the appropriate unique waypoint id for the navigation command.
             return
         if not self._power_manager.toggle_power(should_power_on=True):
@@ -107,7 +107,7 @@ class GraphNavigator(GraphCore):
         while not is_finished:
             # Issue the navigation command about twice a second such that it is easy to terminate the navigation command (with estop or killing the program).
             try:
-                nav_to_cmd_id = self._graph_nav_client.navigate_to(destination_waypoint, 1.0,
+                nav_to_cmd_id = self._graph_nav_client.navigate_to(destination_waypoint_id, 1.0,
                                                                    command_id=nav_to_cmd_id,
                                                                    destination_waypoint_tform_body_goal=relative_pose)
 
@@ -142,7 +142,7 @@ if __name__ == '__main__':
             try:
                 graph_navigator = GraphNavigator(robot, options.graph_path)
                 num_waypoints = graph_navigator.get_waypoint_count()
-                print(f'Nuber of Waypoint: {num_waypoints}')
+                print(f'Number of Waypoints: {num_waypoints}')
 
                 while True:
                     input_str = input(f"Which waypoint to go to? To end, type q:")
@@ -160,7 +160,7 @@ if __name__ == '__main__':
                 input_str = input(f"Try Relative Pose?(y):")
                 if input_str == 'y':
                     from bosdyn.api.geometry_pb2 import SE2Pose, Vec2
-                    relative_pose = SE2Pose(position=Vec2(x=1, y=1), angle=0.5)
+                    relative_pose = SE2Pose(position=Vec2(x=0.5, y=0.5), angle=0.5)
                     graph_navigator.navigate_to(f'Waypoint_0', relative_pose)
 
                 graph_navigator.on_quit()
@@ -168,6 +168,8 @@ if __name__ == '__main__':
             except Exception as exc:  # pylint: disable=broad-except
                 print("GraphNavigator threw an error.")
                 print(exc)
+            finally:
+                graph_navigator.on_quit()
 
     except ResourceAlreadyClaimedError:
         print(

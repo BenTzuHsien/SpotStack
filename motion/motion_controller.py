@@ -179,6 +179,8 @@ if __name__ == '__main__':
             except Exception as exc:  # pylint: disable=broad-except
                 print("MotionController threw an error.")
                 print(exc)
+            finally:
+                motion_controller.on_quit()
 
     except ResourceAlreadyClaimedError:
         print(

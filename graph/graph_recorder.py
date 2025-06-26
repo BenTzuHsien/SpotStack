@@ -1,5 +1,5 @@
 import os, time
-from SpotStack.graph.graph_core import GraphCore, graph_nav_util
+from SpotStack.graph.graph_core import GraphCore
 
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.client.recording import GraphNavRecordingServiceClient, NotReadyYetError
@@ -8,7 +8,7 @@ class GraphRecorder(GraphCore):
     """
     Class for recording GraphNav maps with Spot.
 
-    Inherits from GraphBase and provides methods to:
+    Inherits from GraphCore and provides methods to:
     - Start and stop recording maps.
     - Record waypoints and edges.
     - Save maps and snapshots locally.
@@ -86,25 +86,23 @@ class GraphRecorder(GraphCore):
         self._recording_client.create_waypoint(waypoint_name=name)
         print(f'GraphRecorder: Waypoint {name} Recorded.')
     
-    def create_new_edge(self, waypoint1, waypoint2):
+    def create_new_edge(self, from_waypoint_name, to_waypoint_name):
         """
         Create a new edge between two existing waypoints using kinematic odometry.
 
         Parameters
         ----------
-        waypoint1 : str
-            Name or ID of the source waypoint.
-        waypoint2 : str
-            Name or ID of the destination waypoint.
+        from_waypoint_name : str
+            Name of the source waypoint.
+        to_waypoint_name : str
+            Name of the destination waypoint.
         """
-        self._update_graph_waypoint_and_edge_ids(do_print=False)
+        self._update_graph_waypoint_and_edge_ids()
 
-        from_id = graph_nav_util.find_unique_waypoint_id(waypoint1, self._current_graph,
-                                                         self._current_annotation_name_to_wp_id)
-        to_id = graph_nav_util.find_unique_waypoint_id(waypoint2, self._current_graph,
-                                                       self._current_annotation_name_to_wp_id)
+        from_id = self._current_annotation_name_to_wp_id[from_waypoint_name]
+        to_id = self._current_annotation_name_to_wp_id[to_waypoint_name]
 
-        print("GraphRecorder: Creating edge from {} to {}.".format(from_id, to_id))
+        print(f"GraphRecorder: Creating edge from {from_waypoint_name} to {to_waypoint_name}.")
 
         from_wp = self._get_waypoint(from_id)
         if from_wp is None:
@@ -115,7 +113,7 @@ class GraphRecorder(GraphCore):
             return
 
         # Get edge transform based on kinematic odometry
-        edge_transform = self._get_transform(from_wp, to_wp)
+        edge_transform = self._get_transform_between_waypoints(from_wp, to_wp)
 
         # Define new edge
         new_edge = map_pb2.Edge()
@@ -146,7 +144,6 @@ class GraphRecorder(GraphCore):
         os.makedirs(filepath, exist_ok=True)
         with open(filepath + filename, 'wb+') as f:
             f.write(data)
-            f.close()
 
     def _write_full_graph(self, graph):
         """
@@ -267,11 +264,13 @@ if __name__ == '__main__':
                 break
             
             graph_recorder.record_waypoint(f'Waypoint_{waypoint_index}')
+            if waypoint_index > 0:
+                graph_recorder.create_new_edge('Waypoint_0', f'Waypoint_{waypoint_index}')
             waypoint_index += 1
         
         graph_recorder.stop_recording()
         graph_recorder.download_full_graph()
-        print("Graph is downloaded !")
+        print("Graph download complete.")
 
     except Exception as exc:  # pylint: disable=broad-except
         print("GraphRecorder threw an error.")
