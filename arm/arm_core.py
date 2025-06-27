@@ -60,6 +60,16 @@ class ArmCore:
         self._power_manager = PowerManager(robot)
         self._power_manager.toggle_power(should_power_on=True)
 
+    def on_quit(self):
+        """
+        Cleanup method to run when terminating the program.
+
+        If the robot was powered on by this instance (not externally), it will be powered off safely.
+        """
+        # Sit the robot down + power off after the navigation command is complete.
+        if self._power_manager.check_is_powered_on():
+            self._power_manager.toggle_power(should_power_on=False)
+
     # Motion Control
     def rest_arm(self):
         """
@@ -69,6 +79,15 @@ class ArmCore:
         reset_command = RobotCommandBuilder.build_synchro_command(RobotCommandBuilder.arm_stow_command(), RobotCommandBuilder.claw_gripper_close_command())
 
         cmd_id = self._command_client.robot_command(reset_command)
+        block_until_arm_arrives(self._command_client, cmd_id)
+
+    def freeze_arm(self):
+        """
+        Commands the arm to hold its current pose.
+        This method enables impedance-based control to maintain the arm's joint position in space even if the robot base moves.
+        """
+        arm_joint_freeze_command = RobotCommandBuilder.arm_joint_freeze_command()
+        cmd_id = self._command_client.robot_command(arm_joint_freeze_command)
         block_until_arm_arrives(self._command_client, cmd_id)
 
     def move_to_pose(self, pose, gripper_open_fraction=0.0, use_world_frame=False):
@@ -161,8 +180,9 @@ if __name__ == '__main__':
 
     import argparse, bosdyn.client.util, sys, os, time
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive, ResourceAlreadyClaimedError
-    from bosdyn.client.robot_command import blocking_stand
     from bosdyn.client.math_helpers import Quat, SE3Pose
+
+    from SpotStack.motion.motion_controller import MotionController
     
     parser = argparse.ArgumentParser()
     bosdyn.client.util.add_base_arguments(parser)
@@ -174,12 +194,11 @@ if __name__ == '__main__':
     bosdyn.client.util.authenticate(robot)
 
     lease_client = robot.ensure_client(LeaseClient.default_service_name)
-    command_client = robot.ensure_client(RobotCommandClient.default_service_name)
     try:
         with LeaseKeepAlive(lease_client, must_acquire=True, return_at_exit=True):
             try:
                 arm_core = ArmCore(robot, resolution='4208x3120')
-                blocking_stand(command_client)
+                motion_controller = MotionController(robot)
 
                 flat_body_Q_hand = Quat.from_pitch(1.2)
                 flat_body_T_hand = SE3Pose(x=0.6, y=0.0, z=0.45, rot=flat_body_Q_hand)
@@ -192,12 +211,18 @@ if __name__ == '__main__':
                 image_save_path = os.path.join(os.path.dirname(__file__), 'arm_image.jpg')
                 arm_image.save(image_save_path)
 
+                arm_core.freeze_arm()
+                motion_controller.send_displacement_command(1, 0, 0,)
+                time.sleep(3)
+
                 arm_core.rest_arm()
                 time.sleep(1)
 
             except Exception as exc:  # pylint: disable=broad-except
                 print("ArmCore threw an error.")
                 print(exc)
+            finally:
+                arm_core.on_quit()
 
     except ResourceAlreadyClaimedError:
         print(
